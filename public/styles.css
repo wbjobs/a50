@@ -352,6 +352,120 @@ body {
   color: #e53e3e;
   border-bottom: 2px dashed #e53e3e;
   padding: 0 2px;
+  transition: all 0.2s ease;
+  display: inline-block;
+}
+
+.expression .letter.error-flash {
+  animation: errorFlash 0.5s ease-in-out 0s 6;
+  background: #ffe3e3;
+  color: #c92a2a;
+  border: 2px solid #c92a2a;
+  border-radius: 4px;
+  padding: 0 4px;
+  margin: 0 -2px;
+  box-shadow: 0 0 0 4px rgba(201, 42, 42, 0.2);
+  transform: scale(1.1);
+  z-index: 2;
+  position: relative;
+}
+
+.expression .letter.error-problem {
+  animation: problemPulse 0.4s ease-in-out 0s 8;
+  background: #ff6b6b;
+  color: #fff;
+  border: 2px solid #c92a2a;
+  border-radius: 4px;
+  padding: 0 4px;
+  margin: 0 -2px;
+  box-shadow: 0 0 0 6px rgba(255, 107, 107, 0.3);
+  transform: scale(1.2);
+  z-index: 3;
+  position: relative;
+}
+
+@keyframes errorFlash {
+  0%, 100% {
+    background: #ffe3e3;
+    box-shadow: 0 0 0 4px rgba(201, 42, 42, 0.2);
+    transform: scale(1.1);
+  }
+  50% {
+    background: #ffc9c9;
+    box-shadow: 0 0 0 8px rgba(201, 42, 42, 0.4);
+    transform: scale(1.15);
+  }
+}
+
+@keyframes problemPulse {
+  0%, 100% {
+    background: #ff6b6b;
+    box-shadow: 0 0 0 6px rgba(255, 107, 107, 0.3);
+    transform: scale(1.2);
+  }
+  50% {
+    background: #fa5252;
+    box-shadow: 0 0 0 14px rgba(255, 107, 107, 0.5);
+    transform: scale(1.3);
+  }
+}
+
+.error-detail-box {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: #fff5f5;
+  border: 2px solid #ffa8a8;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.error-detail-box .error-title {
+  color: #c92a2a;
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.error-detail-box .error-title::before {
+  content: '⚠';
+  font-size: 18px;
+}
+
+.error-detail-box .error-info {
+  color: #744210;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.error-detail-box .error-info .digit-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.error-detail-box .error-info .digit-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 6px;
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.error-detail-box .error-info .digit-badge.expected {
+  background: #d3f9d8;
+  color: #2b8a3e;
+}
+
+.error-detail-box .error-info .digit-badge.actual {
+  background: #ffc9c9;
+  color: #c92a2a;
+  text-decoration: line-through;
 }
 
 .hint {

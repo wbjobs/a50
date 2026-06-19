@@ -125,6 +125,8 @@ const app = {
 
       case 'SOLUTION_INCORRECT':
         this.log(`❌ 答案错误：${data.reason}`, 'error');
+        this.highlightErrorLetters(data);
+        this.showErrorDetail(data);
         this.toast('答案错误：' + data.reason);
         break;
 
@@ -272,6 +274,7 @@ const app = {
   },
 
   showPuzzle() {
+    this.clearErrorHighlight();
     this.$('puzzleArea').classList.remove('hidden');
     this.$('puzzleBase').textContent = this.puzzle.base;
     const expr = this.puzzle.expression;
@@ -418,6 +421,7 @@ const app = {
   },
 
   resetUI() {
+    this.clearErrorHighlight();
     this.$('puzzleArea').classList.add('hidden');
     this.$('resultArea').classList.add('hidden');
     this.$('solverArea').classList.add('hidden');
@@ -446,6 +450,130 @@ const app = {
     t.classList.remove('hidden');
     clearTimeout(this._toastTimer);
     this._toastTimer = setTimeout(() => t.classList.add('hidden'), 2500);
+  },
+
+  clearErrorHighlight() {
+    const letters = document.querySelectorAll('.expression .letter');
+    letters.forEach(el => {
+      el.classList.remove('error-flash', 'error-problem');
+    });
+    const existingBox = document.getElementById('errorDetailBox');
+    if (existingBox) existingBox.remove();
+  },
+
+  highlightErrorLetters(data) {
+    this.clearErrorHighlight();
+    const letters = document.querySelectorAll('.expression .letter');
+    const errorSet = new Set((data.errorLetters || []).map(l => l.toUpperCase()));
+    const problem = data.problemLetter ? data.problemLetter.toUpperCase() : null;
+
+    letters.forEach(el => {
+      const ch = el.textContent.toUpperCase();
+      if (problem && ch === problem) {
+        el.classList.add('error-problem');
+      } else if (errorSet.has(ch)) {
+        el.classList.add('error-flash');
+      }
+    });
+
+    const grid = this.$('mappingGrid');
+    if (grid) {
+      const inputs = grid.querySelectorAll('input');
+      inputs.forEach(inp => {
+        const letter = inp.dataset.letter ? inp.dataset.letter.toUpperCase() : '';
+        inp.classList.remove('duplicate');
+        if (problem && letter === problem) {
+          inp.style.borderColor = '#c92a2a';
+          inp.style.background = '#ff6b6b';
+          inp.style.color = '#fff';
+          inp.style.fontWeight = '700';
+        } else if (errorSet.has(letter)) {
+          inp.style.borderColor = '#e53e3e';
+          inp.style.background = '#ffe3e3';
+        }
+      });
+    }
+
+    setTimeout(() => {
+      letters.forEach(el => {
+        el.classList.remove('error-flash', 'error-problem');
+      });
+      if (grid) {
+        const inputs = grid.querySelectorAll('input');
+        inputs.forEach(inp => {
+          inp.style.borderColor = '';
+          inp.style.background = '';
+          inp.style.color = '';
+          inp.style.fontWeight = '';
+        });
+      }
+    }, 4000);
+  },
+
+  showErrorDetail(data) {
+    const puzzleArea = this.$('puzzleArea');
+    if (!puzzleArea) return;
+
+    const existingBox = document.getElementById('errorDetailBox');
+    if (existingBox) existingBox.remove();
+
+    const box = document.createElement('div');
+    box.id = 'errorDetailBox';
+    box.className = 'error-detail-box';
+
+    let titleText = '答案错误';
+    if (data.columnName) {
+      titleText = `${data.columnName}出错`;
+    } else if (data.errorType === 'duplicate') {
+      titleText = '数字重复使用';
+    } else if (data.errorType === 'leading_zero') {
+      titleText = '首位字母不能为0';
+    } else if (data.errorType === 'out_of_range') {
+      titleText = '数字超出进制范围';
+    }
+
+    let infoHtml = `<div>${data.reason}</div>`;
+    if (data.column !== undefined && data.expectedDigit !== undefined && data.actualDigit !== undefined) {
+      infoHtml += `
+        <div class="digit-row">
+          <span style="font-size:13px;">正确值:</span>
+          <span class="digit-badge expected">${data.expectedDigit}</span>
+          <span style="font-size:13px;">你的答案:</span>
+          <span class="digit-badge actual">${data.actualDigit}</span>
+        </div>
+      `;
+    }
+    if (data.errorLetters && data.errorLetters.length > 0) {
+      infoHtml += `<div class="digit-row" style="margin-top:8px;">
+        <span style="font-size:13px;">涉及字母:</span>
+        ${data.errorLetters.map(l => {
+          const isProblem = data.problemLetter && l.toUpperCase() === data.problemLetter.toUpperCase();
+          return `<span class="digit-badge" style="background:${isProblem ? '#ff6b6b' : '#ffe3e3'};color:${isProblem ? '#fff' : '#c92a2a'};">${l}${this.mapping && this.mapping[l] !== undefined ? '=' + this.mapping[l] : ''}</span>`;
+        }).join('')}
+      </div>`;
+    }
+    if (data.leftValue !== undefined && data.rightValue !== undefined) {
+      infoHtml += `<div class="digit-row" style="margin-top:8px;">
+        <span style="font-size:13px;">左边=</span><span class="digit-badge" style="background:#e7f5ff;color:#1971c2;">${data.leftValue}</span>
+        <span style="font-size:13px;">右边=</span><span class="digit-badge" style="background:#fff3bf;color:#9c6d00;">${data.rightValue}</span>
+      </div>`;
+    }
+
+    box.innerHTML = `
+      <div class="error-title">${titleText}</div>
+      <div class="error-info">${infoHtml}</div>
+    `;
+
+    const parent = puzzleArea.querySelector('.puzzle-card');
+    if (parent) {
+      parent.appendChild(box);
+    } else {
+      puzzleArea.appendChild(box);
+    }
+
+    setTimeout(() => {
+      if (box.parentNode) box.parentNode.removeChild(box);
+    }, 6000);
   }
 };
 

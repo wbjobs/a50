@@ -163,7 +163,16 @@ wss.on('connection', (ws) => {
           });
         } else {
           sendToClient(ws, 'SOLUTION_INCORRECT', {
-            reason: result.reason
+            reason: result.reason,
+            errorLetters: result.errorLetters || [],
+            errorType: result.errorType || 'unknown',
+            column: result.column,
+            columnName: result.columnName,
+            expectedDigit: result.expectedDigit,
+            actualDigit: result.actualDigit,
+            problemLetter: result.problemLetter,
+            leftValue: result.leftValue,
+            rightValue: result.rightValue
           });
         }
         break;
