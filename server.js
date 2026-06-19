@@ -26,7 +26,8 @@ function broadcastToRoom(roomId, type, data, excludeWs = null) {
   const room = roomManager.getRoom(roomId);
   if (!room) return;
   const message = JSON.stringify({ type, data });
-  for (const player of room.players) {
+  const all = room.getAllConnected();
+  for (const player of all) {
     if (player.ws && player.ws !== excludeWs && player.ws.readyState === player.ws.OPEN) {
       player.ws.send(message);
     }
@@ -36,6 +37,7 @@ function broadcastToRoom(roomId, type, data, excludeWs = null) {
 wss.on('connection', (ws) => {
   let currentRoomId = null;
   let currentPlayerId = null;
+  let isSpectator = false;
 
   ws.on('message', (raw) => {
     let msg;
@@ -53,11 +55,14 @@ wss.on('connection', (ws) => {
         const player = roomManager.addPlayer(room.id, playerName, ws);
         currentRoomId = room.id;
         currentPlayerId = player.id;
+        isSpectator = false;
         sendToClient(ws, 'ROOM_CREATED', {
           roomId: room.id,
           playerId: player.id,
           role: player.role,
-          players: room.getPublicPlayers()
+          isSpectator: false,
+          players: room.getPublicPlayers(),
+          spectatorCount: room.getSpectatorCount()
         });
         break;
       }
@@ -76,25 +81,75 @@ wss.on('connection', (ws) => {
         const player = roomManager.addPlayer(roomId, playerName, ws);
         currentRoomId = roomId;
         currentPlayerId = player.id;
+        isSpectator = false;
         sendToClient(ws, 'ROOM_JOINED', {
           roomId: room.id,
           playerId: player.id,
           role: player.role,
+          isSpectator: false,
           players: room.getPublicPlayers(),
+          spectatorCount: room.getSpectatorCount(),
           puzzle: room.puzzle ? {
             base: room.puzzle.base,
             expression: room.puzzle.expression,
             uniqueLetters: room.puzzle.uniqueLetters
           } : null,
-          gameState: room.state
+          gameState: room.state,
+          submissions: room.submissions.map(s => ({
+            mapping: s.mapping,
+            elapsedMs: s.elapsedMs,
+            valid: s.valid
+          }))
         });
         broadcastToRoom(roomId, 'PLAYER_JOINED', {
-          players: room.getPublicPlayers()
+          players: room.getPublicPlayers(),
+          spectatorCount: room.getSpectatorCount()
+        }, ws);
+        break;
+      }
+
+      case 'SPECTATE_ROOM': {
+        const { roomId, playerName } = data;
+        const room = roomManager.getRoom(roomId);
+        if (!room) {
+          sendToClient(ws, 'ERROR', { message: '房间不存在' });
+          return;
+        }
+        const spectator = roomManager.addSpectator(roomId, playerName || '观战者', ws);
+        currentRoomId = roomId;
+        currentPlayerId = spectator.id;
+        isSpectator = true;
+        sendToClient(ws, 'SPECTATE_JOINED', {
+          roomId: room.id,
+          playerId: spectator.id,
+          role: 'spectator',
+          isSpectator: true,
+          players: room.getPublicPlayers(),
+          spectatorCount: room.getSpectatorCount(),
+          puzzle: room.puzzle ? {
+            base: room.puzzle.base,
+            expression: room.puzzle.expression,
+            uniqueLetters: room.puzzle.uniqueLetters
+          } : null,
+          gameState: room.state,
+          submissions: room.submissions.map(s => ({
+            mapping: s.mapping,
+            elapsedMs: s.elapsedMs,
+            valid: s.valid,
+            errorInfo: s.errorInfo
+          })),
+          solveTime: room.solveTime,
+          winnerId: room.winnerId,
+          difficultyRating: room.difficultyRating
+        });
+        broadcastToRoom(roomId, 'SPECTATOR_UPDATED', {
+          spectatorCount: room.getSpectatorCount()
         }, ws);
         break;
       }
 
       case 'SET_PUZZLE': {
+        if (isSpectator) return;
         const { base, expression } = data;
         const room = roomManager.getRoom(currentRoomId);
         if (!room) return;
@@ -113,12 +168,14 @@ wss.on('connection', (ws) => {
           base,
           expression,
           uniqueLetters: letters,
-          gameState: room.state
+          gameState: room.state,
+          spectatorCount: room.getSpectatorCount()
         });
         break;
       }
 
       case 'START_GAME': {
+        if (isSpectator) return;
         const room = roomManager.getRoom(currentRoomId);
         if (!room) return;
         const player = room.getPlayer(currentPlayerId);
@@ -137,12 +194,14 @@ wss.on('connection', (ws) => {
         room.startGame();
         broadcastToRoom(currentRoomId, 'GAME_STARTED', {
           startTime: room.startTime,
-          gameState: room.state
+          gameState: room.state,
+          spectatorCount: room.getSpectatorCount()
         });
         break;
       }
 
       case 'SUBMIT_SOLUTION': {
+        if (isSpectator) return;
         const { mapping } = data;
         const room = roomManager.getRoom(currentRoomId);
         if (!room || room.state !== 'playing') return;
@@ -152,17 +211,22 @@ wss.on('connection', (ws) => {
           return;
         }
         const result = validateSolution(room.puzzle.base, room.puzzle.expression, mapping);
+
         if (result.valid) {
           const solveTime = Date.now() - room.startTime;
+          room.addSubmission(mapping, true, null);
           room.completeGame(solveTime, currentPlayerId);
           broadcastToRoom(currentRoomId, 'SOLUTION_CORRECT', {
             solveTime,
             winnerId: currentPlayerId,
             mapping,
-            gameState: room.state
+            gameState: room.state,
+            difficultyRating: room.difficultyRating,
+            totalSubmissions: room.submissions.length,
+            spectatorCount: room.getSpectatorCount()
           });
         } else {
-          sendToClient(ws, 'SOLUTION_INCORRECT', {
+          const errorInfo = {
             reason: result.reason,
             errorLetters: result.errorLetters || [],
             errorType: result.errorType || 'unknown',
@@ -173,7 +237,21 @@ wss.on('connection', (ws) => {
             problemLetter: result.problemLetter,
             leftValue: result.leftValue,
             rightValue: result.rightValue
+          };
+          room.addSubmission(mapping, false, errorInfo);
+          const subIndex = room.submissions.length;
+          sendToClient(ws, 'SOLUTION_INCORRECT', {
+            ...errorInfo,
+            submissionIndex: subIndex,
+            totalSubmissions: subIndex
           });
+          broadcastToRoom(currentRoomId, 'SUBMISSION_LOGGED', {
+            submissionIndex: subIndex,
+            totalSubmissions: subIndex,
+            mapping,
+            valid: false,
+            elapsedMs: room.submissions[room.submissions.length - 1].elapsedMs
+          }, ws);
         }
         break;
       }
@@ -188,12 +266,14 @@ wss.on('connection', (ws) => {
       }
 
       case 'RESET_GAME': {
+        if (isSpectator) return;
         const room = roomManager.getRoom(currentRoomId);
         if (!room) return;
         room.resetGame();
         broadcastToRoom(currentRoomId, 'GAME_RESET', {
           gameState: room.state,
-          players: room.getPublicPlayers()
+          players: room.getPublicPlayers(),
+          spectatorCount: room.getSpectatorCount()
         });
         break;
       }
@@ -205,11 +285,13 @@ wss.on('connection', (ws) => {
       const room = roomManager.getRoom(currentRoomId);
       if (room) {
         roomManager.removePlayer(currentRoomId, currentPlayerId);
-        if (room.getPlayerCount() === 0) {
+        const total = room.getPlayerCount() + room.getSpectatorCount();
+        if (total === 0) {
           roomManager.removeRoom(currentRoomId);
         } else {
-          broadcastToRoom(currentRoomId, 'PLAYER_LEFT', {
-            players: room.getPublicPlayers()
+          broadcastToRoom(currentRoomId, isSpectator ? 'SPECTATOR_UPDATED' : 'PLAYER_LEFT', {
+            players: room.getPublicPlayers(),
+            spectatorCount: room.getSpectatorCount()
           });
         }
       }
@@ -225,9 +307,25 @@ app.get('/api/rooms/:roomId', (req, res) => {
   res.json({
     roomId: room.id,
     playerCount: room.getPlayerCount(),
+    spectatorCount: room.getSpectatorCount(),
     gameState: room.state,
     players: room.getPublicPlayers()
   });
+});
+
+app.get('/api/replay/:roomId', (req, res) => {
+  const room = roomManager.getRoom(req.params.roomId);
+  if (!room) {
+    return res.status(404).json({ error: '房间不存在' });
+  }
+  if (room.state !== 'finished') {
+    return res.status(400).json({ error: '对局尚未完成' });
+  }
+  res.json(room.getReplayData());
+});
+
+app.get('/replay', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'replay.html'));
 });
 
 server.listen(PORT, () => {

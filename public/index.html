@@ -24,6 +24,7 @@
           <div class="btn-group">
             <button id="btnCreateRoom" class="btn btn-primary">创建房间</button>
             <button id="btnJoinRoom" class="btn btn-secondary">加入房间</button>
+            <button id="btnSpectate" class="btn btn-secondary">👁 观战</button>
           </div>
           <div id="joinForm" class="hidden">
             <div class="form-group">
@@ -31,6 +32,16 @@
               <input type="text" id="roomIdInput" placeholder="输入6位房间号" maxlength="6" />
             </div>
             <button id="btnConfirmJoin" class="btn btn-primary">确认加入</button>
+          </div>
+          <div id="spectateForm" class="hidden">
+            <div class="form-group">
+              <label>观战房间号</label>
+              <input type="text" id="spectateRoomIdInput" placeholder="输入6位房间号" maxlength="6" />
+            </div>
+            <button id="btnConfirmSpectate" class="btn btn-primary">进入观战</button>
+            <p style="text-align:center;margin-top:10px;font-size:13px;color:#718096;">
+              或 <a href="/replay" class="link-like">查看对局复盘 →</a>
+            </p>
           </div>
         </div>
         <div class="card rules-card">
@@ -56,6 +67,10 @@
           <div class="timer-box" id="timerBox">
             <span class="label">⏱ 用时</span>
             <span id="timerDisplay" class="timer">00:00</span>
+          </div>
+          <div class="spectator-box" id="spectatorBox" style="display:none;">
+            <span class="label">👁 观战</span>
+            <span id="spectatorCount" class="spectator-count">0</span>
           </div>
         </div>
 
@@ -109,8 +124,13 @@
           <div class="card result-card">
             <h2 id="resultTitle">🎉 挑战成功！</h2>
             <p id="resultTime">用时: 00:00</p>
+            <div id="difficultyBox" class="difficulty-result hidden">
+              <div id="resultStars" class="stars-result">⭐⭐⭐⭐⭐</div>
+              <p id="resultConvergence" class="convergence-result">收敛速度: 极快</p>
+            </div>
             <div id="resultMapping" class="mapping-grid"></div>
             <div class="btn-group">
+              <button id="btnReplay" class="btn btn-primary">🎞 查看复盘</button>
               <button id="btnReset" class="btn btn-secondary">再来一局</button>
             </div>
           </div>

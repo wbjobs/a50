@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>虫食算 · 对局复盘</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/replay.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="app-header">
+      <h1>🎞 对局复盘</h1>
+      <p class="subtitle">虫食算 · 多人桌游</p>
+    </header>
+
+    <main id="main">
+      <section id="screen-enter" class="screen active">
+        <div class="card">
+          <h2>查看对局复盘</h2>
+          <div class="form-group">
+            <label>房间号</label>
+            <input type="text" id="roomIdInput" placeholder="输入6位房间号" maxlength="6" />
+          </div>
+          <button id="btnLoadReplay" class="btn btn-primary">加载对局</button>
+          <p style="text-align:center;margin-top:12px;">
+            <a href="/" class="link-btn">← 返回游戏</a>
+          </p>
+        </div>
+      </section>
+
+      <section id="screen-replay" class="screen">
+        <div class="room-info">
+          <div class="room-id-box">
+            <span class="label">房间</span>
+            <span id="roomIdDisplay" class="room-id">------</span>
+          </div>
+          <div class="timer-box">
+            <span class="label">⏱ 总用时</span>
+            <span id="totalTimeDisplay" class="timer">00:00</span>
+          </div>
+        </div>
+
+        <div class="card difficulty-card">
+          <div class="difficulty-header">
+            <div>
+              <h3 id="puzzleExprDisplay" style="font-family:'Courier New',monospace;margin:0;">—</h3>
+              <p style="color:#718096;font-size:13px;margin-top:4px;">
+                进制: <b id="puzzleBaseDisplay">10</b> · 
+                字母数: <b id="letterCountDisplay">0</b> · 
+                解题人: <b id="solverNameDisplay">—</b>
+              </p>
+            </div>
+            <div class="stars-box">
+              <div id="starsDisplay" class="stars">⭐⭐⭐⭐⭐</div>
+              <p class="stars-label">难度评估</p>
+              <p id="convergenceDisplay" class="convergence">收敛速度: —</p>
+            </div>
+          </div>
+          <div class="difficulty-breakdown" id="breakdownDisplay"></div>
+        </div>
+
+        <div class="card replay-card">
+          <h3>🧩 回放视图</h3>
+          <div class="expression-replay" id="expressionReplay">—</div>
+          <div class="mapping-grid-replay" id="mappingGridReplay"></div>
+          <div id="replayErrorBox" class="error-detail-box hidden"></div>
+        </div>
+
+        <div class="card timeline-card">
+          <div class="timeline-header">
+            <h3>⏳ 尝试时间轴</h3>
+            <span id="attemptCountLabel">第 0 / 0 次尝试</span>
+          </div>
+          <div class="timeline-slider-wrap">
+            <span class="timeline-badge start">00:00</span>
+            <input type="range" id="timelineSlider" min="0" max="0" value="0" step="1" />
+            <span id="timelineEndBadge" class="timeline-badge end">00:00</span>
+          </div>
+          <div class="timeline-marks" id="timelineMarks"></div>
+          <div class="timeline-controls">
+            <button id="btnPrev" class="btn btn-secondary btn-sm">◀ 上一次</button>
+            <button id="btnPlay" class="btn btn-primary">▶ 自动播放</button>
+            <button id="btnNext" class="btn btn-secondary btn-sm">下一次 ▶</button>
+          </div>
+        </div>
+
+        <div class="card attempts-card">
+          <h3>📜 尝试记录</h3>
+          <div id="attemptsList" class="attempts-list"></div>
+        </div>
+
+        <p style="text-align:center;margin-top:16px;">
+          <a href="/" class="link-btn">← 返回游戏</a>
+        </p>
+      </section>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script src="/replay.js"></script>
+</body>
+</html>

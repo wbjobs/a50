@@ -17,14 +17,23 @@ const app = {
     this.$('btnCreateRoom').addEventListener('click', () => this.createRoom());
     this.$('btnJoinRoom').addEventListener('click', () => {
       this.$('joinForm').classList.toggle('hidden');
+      this.$('spectateForm').classList.add('hidden');
+    });
+    this.$('btnSpectate').addEventListener('click', () => {
+      this.$('spectateForm').classList.toggle('hidden');
+      this.$('joinForm').classList.add('hidden');
     });
     this.$('btnConfirmJoin').addEventListener('click', () => this.joinRoom());
+    this.$('btnConfirmSpectate').addEventListener('click', () => this.spectateRoom());
     this.$('btnCopyRoomId').addEventListener('click', () => this.copyRoomId());
     this.$('btnSetPuzzle').addEventListener('click', () => this.setPuzzle());
     this.$('btnStartGame').addEventListener('click', () => this.startGame());
     this.$('btnSubmit').addEventListener('click', () => this.submitSolution());
     this.$('btnClear').addEventListener('click', () => this.clearMapping());
     this.$('btnReset').addEventListener('click', () => this.resetGame());
+    if (this.$('btnReplay')) {
+      this.$('btnReplay').addEventListener('click', () => this.goToReplay());
+    }
     this.$('expressionInput').addEventListener('input', () => this.updatePuzzleHint());
     this.$('baseInput').addEventListener('input', () => this.updatePuzzleHint());
   },
@@ -71,6 +80,7 @@ const app = {
         this.showGameScreen();
         this.updateRoomInfo();
         this.updatePlayers(data.players);
+        this.updateSpectatorCount(data.spectatorCount);
         this.updateRoleUI();
         break;
 
@@ -83,25 +93,60 @@ const app = {
         this.showGameScreen();
         this.updateRoomInfo();
         this.updatePlayers(data.players);
+        this.updateSpectatorCount(data.spectatorCount);
         this.updateRoleUI();
         if (this.puzzle) this.showPuzzle();
         break;
 
+      case 'SPECTATE_JOINED':
+        this.roomId = data.roomId;
+        this.playerId = data.playerId;
+        this.role = 'spectator';
+        this.gameState = data.gameState;
+        if (data.puzzle) this.puzzle = data.puzzle;
+        this.showGameScreen();
+        this.updateRoomInfo();
+        this.updatePlayers(data.players);
+        this.updateSpectatorCount(data.spectatorCount);
+        this.updateRoleUI();
+        this.$('gameStatus').textContent = '👁 观战模式';
+        this.$('gameStatus').classList.add('playing');
+        if (this.puzzle) this.showPuzzle();
+        if (data.submissions && data.submissions.length > 0) {
+          this.log(`已加载 ${data.submissions.length} 次历史提交`);
+        }
+        if (data.gameState === 'finished') {
+          this.showResult({ solveTime: data.solveTime, difficultyRating: data.difficultyRating, mapping: {} });
+        }
+        this.log('已进入观战模式', 'success');
+        break;
+
       case 'PLAYER_JOINED':
         this.updatePlayers(data.players);
+        this.updateSpectatorCount(data.spectatorCount);
         this.log('新玩家加入房间');
         this.updateRoleUI();
         break;
 
       case 'PLAYER_LEFT':
         this.updatePlayers(data.players);
+        this.updateSpectatorCount(data.spectatorCount);
         this.log('有玩家离开房间', 'error');
         this.updateRoleUI();
+        break;
+
+      case 'SPECTATOR_UPDATED':
+        this.updateSpectatorCount(data.spectatorCount);
+        break;
+
+      case 'SUBMISSION_LOGGED':
+        this.log(`观战：玩家提交了第 ${data.submissionIndex} 次答案（${data.valid ? '正确' : '错误'}）`);
         break;
 
       case 'PUZZLE_SET':
         this.puzzle = { base: data.base, expression: data.expression, uniqueLetters: data.uniqueLetters };
         this.gameState = data.gameState;
+        this.updateSpectatorCount(data.spectatorCount);
         this.showPuzzle();
         this.log('题目已设置');
         this.updateStatus();
@@ -111,8 +156,13 @@ const app = {
         this.gameState = 'playing';
         this.startTime = data.startTime;
         this.startTimer();
+        this.updateSpectatorCount(data.spectatorCount);
         this.updateStatus();
         if (this.role === 'B') this.renderMappingInputs();
+        if (this.role === 'spectator') {
+          this.$('solverArea').classList.add('hidden');
+          this.$('setterArea').classList.add('hidden');
+        }
         this.log('🎮 游戏开始！');
         break;
 
@@ -120,6 +170,7 @@ const app = {
         this.gameState = 'finished';
         this.stopTimer();
         this.showResult(data);
+        this.updateSpectatorCount(data.spectatorCount);
         this.log('🎉 答案正确！挑战成功！', 'success');
         break;
 
@@ -142,6 +193,7 @@ const app = {
         this.elapsed = 0;
         this.updateTimerDisplay();
         this.updatePlayers(data.players);
+        this.updateSpectatorCount(data.spectatorCount);
         this.resetUI();
         this.updateRoleUI();
         this.updateStatus();
@@ -175,6 +227,35 @@ const app = {
     this.ws.onopen = () => {
       this.ws.send(JSON.stringify({ type: 'JOIN_ROOM', data: { roomId, playerName: name } }));
     };
+  },
+
+  spectateRoom() {
+    const name = this.$('playerName').value.trim() || '观战者';
+    const roomId = this.$('spectateRoomIdInput').value.trim().toUpperCase();
+    if (!roomId) return this.toast('请输入观战房间号');
+    this.playerName = name;
+    this.connect();
+    this.ws.onopen = () => {
+      this.ws.send(JSON.stringify({ type: 'SPECTATE_ROOM', data: { roomId, playerName: name } }));
+    };
+  },
+
+  goToReplay() {
+    if (this.roomId) {
+      window.open(`/replay?room=${this.roomId}`, '_blank');
+    }
+  },
+
+  updateSpectatorCount(count) {
+    const box = this.$('spectatorBox');
+    if (box) {
+      if (count && count > 0) {
+        box.style.display = 'flex';
+        this.$('spectatorCount').textContent = count;
+      } else {
+        box.style.display = 'none';
+      }
+    }
   },
 
   showGameScreen() {
@@ -405,6 +486,20 @@ const app = {
     const min = String(Math.floor(totalSec / 60)).padStart(2, '0');
     const sec = String(totalSec % 60).padStart(2, '0');
     this.$('resultTime').textContent = `用时: ${min}:${sec}`;
+
+    if (data.difficultyRating) {
+      this.$('difficultyBox').classList.remove('hidden');
+      const r = data.difficultyRating;
+      let starsHtml = '';
+      for (let i = 0; i < 5; i++) {
+        if (i < r.stars) starsHtml += '⭐';
+        else starsHtml += '<span style="opacity:0.2;">⭐</span>';
+      }
+      this.$('resultStars').innerHTML = starsHtml;
+      this.$('resultConvergence').textContent = `收敛速度: ${r.convergenceSpeed} · 尝试 ${r.attempts} 次`;
+    } else {
+      this.$('difficultyBox').classList.add('hidden');
+    }
 
     const grid = this.$('resultMapping');
     grid.innerHTML = '';
